@@ -15,10 +15,13 @@
 //! action via `crate::policy::require`. `sys:admin`/org/env-admin scopes pass
 //! through the mirror's admin permits — platform admins never bypass Shield.
 
+use crate::config::DistribConfig;
 use axum::http::{HeaderMap, StatusCode};
 pub use sentin8::auth::client::AuthContext;
-use crate::config::DistribConfig;
 
-pub async fn verify_token(config: &DistribConfig, headers: &HeaderMap) -> Result<AuthContext, (StatusCode, String)> {
+pub async fn verify_token(
+    config: &DistribConfig,
+    headers: &HeaderMap,
+) -> Result<AuthContext, (StatusCode, String)> {
     sentin8::auth::client::verify_bearer_token(&config.sentin8_auth_client, headers).await
 }
