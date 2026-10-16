@@ -2,7 +2,11 @@
   "vertical": "hotel8",
   "services": [
     {
-      "service_type": "hotel8:distrib"
+      "service_type": "hotel8:distrib",
+      "telemetry_property": {
+        "slug": "distrib",
+        "name": "Hotel8:Distrib Telemetry"
+      }
     }
   ]
 }
