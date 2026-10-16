@@ -73,9 +73,9 @@ sequenceDiagram
     RMs->>D: POST /v1/channels/{id}/ari {rates, avail}
     D->>S: require(hotel8:distrib:ari:write)
     S-->>D: permit (edit-window ABAC check)
-    D->>DB: BEGIN; INSERT distrib.rate_updates + inventory_updates + sync rows; outbox (hotel8:distrib:ari:pushed); journal; COMMIT
+    D->>DB: BEGIN, INSERT distrib.rate_updates + inventory_updates + sync rows, outbox (hotel8:distrib:ari:pushed), journal, COMMIT
     D-->>RMs: 200 pushed-count
-    Note over DB: channel deliveries reconcile via sync_log; sync:retried on failure
+    Note over RMs,DB: channel deliveries reconcile via sync_log, sync:retried on failure
 ```
 
 ### Request lifecycle — channel booking intake
@@ -87,12 +87,12 @@ sequenceDiagram
     participant PMSx as hotel8:pms
     participant DB as db hotel8 (distrib)
     CH->>D: POST /v1/bookings {channel booking}
-    D->>DB: BEGIN; INSERT distrib.bookings; outbox hotel8:distrib:reservation:received; COMMIT
+    D->>DB: BEGIN, INSERT distrib.bookings, outbox hotel8:distrib:reservation:received, COMMIT
     D->>PMSx: create reservation via PMS API (mapping-resolved ids)
     alt PMS accept
-        D->>DB: sync state → synced; push status update event
+        D->>DB: sync state → synced, push status update event
     else PMS reject (sold out)
-        D->>DB: sync state → failed/try; channel receives rejection path
+        D->>DB: sync state → failed/try, channel receives rejection path
     end
 ```
 
