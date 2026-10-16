@@ -1,0 +1,109 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hotel8-distrib",
+    "description": "Sentin8 Hotel8:Distrib — Distribution service.",
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/admin/availability": {
+      "get": {
+        "tags": [
+          "distrib"
+        ],
+        "summary": "`GET /v1/channels/{channel_code}/properties/{property_code}/ari`",
+        "operationId": "get_channel_ari",
+        "responses": {
+          "200": {
+            "description": "Channel availability (ARI)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing distrib:admin scope"
+          }
+        },
+        "security": [
+          {
+            "distrib:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/channels": {
+      "get": {
+        "tags": [
+          "distrib"
+        ],
+        "summary": "`GET /v1/channels`",
+        "operationId": "list_channels",
+        "responses": {
+          "200": {
+            "description": "List of channels",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing distrib:admin scope"
+          }
+        },
+        "security": [
+          {
+            "distrib:admin": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "distrib"
+        ],
+        "summary": "`POST /v1/channels`",
+        "operationId": "create_channel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Missing distrib:admin scope"
+          }
+        },
+        "security": [
+          {
+            "distrib:admin": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {},
+  "security": [],
+  "tags": [
+    {
+      "name": "distrib",
+      "description": "Hotel8:Distrib admin API — availability, channels"
+    }
+  ]
+}
