@@ -1,4 +1,4 @@
-# BUSINESS.md: Hotel8:Distrib — Business Requirements & Functionality
+# Hotel8:Distrib — Business Requirements & Functionality
 
 > Audience: product owners, business analysts, and anyone evaluating what
 > Hotel8:Distrib **does for the business**. For architecture read
