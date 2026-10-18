@@ -1,109 +1,1181 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "hotel8-distrib",
-    "description": "Sentin8 Hotel8:Distrib — Distribution service.",
-    "license": {
-      "name": "MIT OR Apache-2.0",
-      "identifier": "MIT OR Apache-2.0"
-    },
-    "version": "0.1.0"
+ "openapi": "3.1.0",
+ "info": {
+  "title": "hotel8-distrib",
+  "description": "Sentin8 Hotel8:Distrib \u2014 Distribution service.",
+  "license": {
+   "name": "MIT OR Apache-2.0",
+   "identifier": "MIT OR Apache-2.0"
   },
-  "paths": {
-    "/v1/admin/availability": {
-      "get": {
-        "tags": [
-          "distrib"
-        ],
-        "summary": "`GET /v1/channels/{channel_code}/properties/{property_code}/ari`",
-        "operationId": "get_channel_ari",
-        "responses": {
-          "200": {
-            "description": "Channel availability (ARI)",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing distrib:admin scope"
-          }
-        },
-        "security": [
-          {
-            "distrib:admin": []
-          }
-        ]
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/v1/admin/attributes": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_attributes",
+    "responses": {
+     "200": {
+      "description": "Principal attributes of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
       }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
     },
-    "/v1/admin/channels": {
-      "get": {
-        "tags": [
-          "distrib"
-        ],
-        "summary": "`GET /v1/channels`",
-        "operationId": "list_channels",
-        "responses": {
-          "200": {
-            "description": "List of channels",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing distrib:admin scope"
-          }
-        },
-        "security": [
-          {
-            "distrib:admin": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "distrib"
-        ],
-        "summary": "`POST /v1/channels`",
-        "operationId": "create_channel",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Channel created",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "403": {
-            "description": "Missing distrib:admin scope"
-          }
-        },
-        "security": [
-          {
-            "distrib:admin": []
-          }
-        ]
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_attribute",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
       }
-    }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Attribute stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid attribute definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_attribute",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "query",
+      "description": "Attribute id to delete",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Attribute deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
   },
-  "components": {},
-  "security": [],
-  "tags": [
-    {
-      "name": "distrib",
-      "description": "Hotel8:Distrib admin API — availability, channels"
-    }
-  ]
+  "/v1/admin/policy-sets": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_sets",
+    "responses": {
+     "200": {
+      "description": "Policy sets of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/disable": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_disable",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets disabled"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/enforce": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_enforce",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets switched to enforce mode"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/shadow": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_mode_shadow",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Sets switched to shadow mode"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/{name}": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_get_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The policy set",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     },
+     "404": {
+      "description": "Unknown policy set name"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Policy set stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid policy set definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Policy set deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/policy-sets/{name}/test": {
+   "post": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_test_set",
+    "parameters": [
+     {
+      "name": "name",
+      "in": "path",
+      "description": "Policy set name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Dry-run decision trace",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/relations": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_list_relations",
+    "responses": {
+     "200": {
+      "description": "ReBAC relations of this service",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {}
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "put": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_put_relation",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Relation stored",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid relation definition"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   },
+   "delete": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_delete_relation",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "query",
+      "description": "Relation id to delete",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Relation deleted"
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/relations/check": {
+   "get": {
+    "tags": [
+     "policy"
+    ],
+    "operationId": "policy_check_relation",
+    "parameters": [
+     {
+      "name": "subject",
+      "in": "query",
+      "description": "Subject key",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "relation",
+      "in": "query",
+      "description": "Relation name",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "object",
+      "in": "query",
+      "description": "Object key",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The check verdict",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Caller lacks the admin scope"
+     }
+    },
+    "security": [
+     {
+      "sentin8:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/admin/ui/{page}": {
+   "get": {
+    "tags": [
+     "distrib-admin"
+    ],
+    "operationId": "get_admin_ui",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channel-properties": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "map_channel_property",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channel-properties/{channel_property_id}/controls": {
+   "put": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "set_property_controls",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channel-properties/{channel_property_id}/markup": {
+   "put": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "set_rate_markup",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "summary": "`GET /v1/channels`",
+    "operationId": "list_channels",
+    "responses": {
+     "200": {
+      "description": "List of channels",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing distrib:admin scope"
+     }
+    },
+    "security": [
+     {
+      "distrib:admin": []
+     }
+    ]
+   },
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "summary": "`POST /v1/channels`",
+    "operationId": "create_channel",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {}
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Channel created",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing distrib:admin scope"
+     }
+    },
+    "security": [
+     {
+      "distrib:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/channels/{channel_code}/properties": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "get_channel_properties",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/properties/{property_code}/ari": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "summary": "`GET /v1/channels/{channel_code}/properties/{property_code}/ari`",
+    "operationId": "get_channel_ari",
+    "responses": {
+     "200": {
+      "description": "Channel availability (ARI)",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "403": {
+      "description": "Missing distrib:admin scope"
+     }
+    },
+    "security": [
+     {
+      "distrib:admin": []
+     }
+    ]
+   }
+  },
+  "/v1/channels/{channel_code}/properties/{property_code}/content": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "get_channel_property_content",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/properties/{property_code}/controls": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "get_channel_controls",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/reservations": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "receive_reservation",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/reservations/{booking_id}": {
+   "put": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "update_channel_reservation",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/reservations/{booking_id}/status": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "push_reservation_status",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_code}/validate": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "validate_channel_credentials",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_id}": {
+   "put": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "update_channel",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   },
+   "delete": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "delete_channel",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_id}/ari/push": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "push_ari",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_id}/content/push": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "push_content",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_id}/controls/push": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "push_controls",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/channels/{channel_id}/mapped-properties": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "list_channel_properties",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/health": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "health",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/rate-plan-mappings": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "map_rate_plan",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/room-type-mappings": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "map_room_type",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/sync-log": {
+   "get": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "get_sync_log",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  },
+  "/v1/sync/retry": {
+   "post": {
+    "tags": [
+     "distrib"
+    ],
+    "operationId": "retry_failed_syncs",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "401": {
+      "description": "Not authenticated"
+     },
+     "403": {
+      "description": "Forbidden"
+     }
+    },
+    "security": []
+   }
+  }
+ },
+ "components": {},
+ "security": [],
+ "tags": [
+  {
+   "name": "policy",
+   "description": "Shield policy administration (shared surface)"
+  },
+  {
+   "name": "distrib",
+   "description": "Hotel8:Distrib admin API \u2014 availability, channels"
+  }
+ ]
 }

@@ -47,6 +47,17 @@ fn err_db(e: sqlx::Error) -> (StatusCode, String) {
 fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }
+#[utoipa::path(
+    get,
+    path = "/v1/health",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn health(
     axum::extract::State(_state): axum::extract::State<AppState>,
@@ -59,7 +70,7 @@ pub async fn health(
 /// `POST /v1/channels`
 #[utoipa::path(
     post,
-    path = "/v1/admin/channels",
+    path = "/v1/channels",
     request_body = serde_json::Value,
     responses(
         (status = 200, description = "Channel created", body = serde_json::Value),
@@ -124,7 +135,7 @@ pub async fn create_channel(
 /// `GET /v1/channels`
 #[utoipa::path(
     get,
-    path = "/v1/admin/channels",
+    path = "/v1/channels",
     responses(
         (status = 200, description = "List of channels", body = serde_json::Value),
         (status = 403, description = "Missing distrib:admin scope"),
@@ -163,6 +174,17 @@ pub async fn list_channels(
 }
 
 // ── Channel CRUD (update + delete) ──
+#[utoipa::path(
+    put,
+    path = "/v1/channels/{channel_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn update_channel(
     State(state): State<AppState>,
@@ -203,6 +225,17 @@ pub async fn update_channel(
         serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "channel_code": row.get::<String, _>("channel_code"), "channel_name": row.get::<String, _>("channel_name"), "channel_type": row.get::<String, _>("channel_type"), "is_active": row.get::<bool, _>("is_active"), "api_endpoint": row.get::<Option<String>, _>("api_endpoint") }),
     ))
 }
+#[utoipa::path(
+    delete,
+    path = "/v1/channels/{channel_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn delete_channel(
     State(state): State<AppState>,
@@ -239,6 +272,17 @@ pub async fn delete_channel(
 }
 
 // ── Channel Property mapping ──
+#[utoipa::path(
+    post,
+    path = "/v1/channel-properties",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn map_channel_property(
     State(state): State<AppState>,
@@ -288,6 +332,17 @@ pub async fn map_channel_property(
         serde_json::json!({ "id": id, "channel_id": channel_id, "property_id": property_id, "is_enabled": row.get::<bool, _>("is_enabled") }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/channels/{channel_id}/mapped-properties",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn list_channel_properties(
     State(state): State<AppState>,
@@ -319,6 +374,17 @@ pub async fn list_channel_properties(
 }
 
 // ── Room Type mapping per channel ──
+#[utoipa::path(
+    post,
+    path = "/v1/room-type-mappings",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn map_room_type(
     State(state): State<AppState>,
@@ -378,6 +444,17 @@ pub async fn map_room_type(
 }
 
 // ── Rate Plan mapping per channel ──
+#[utoipa::path(
+    post,
+    path = "/v1/rate-plan-mappings",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn map_rate_plan(
     State(state): State<AppState>,
@@ -437,6 +514,17 @@ pub async fn map_rate_plan(
 }
 
 // ── Rate markup/markdown per channel ──
+#[utoipa::path(
+    put,
+    path = "/v1/channel-properties/{channel_property_id}/markup",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn set_rate_markup(
     State(state): State<AppState>,
@@ -476,6 +564,17 @@ pub async fn set_rate_markup(
 }
 
 // ── Property controls per channel ──
+#[utoipa::path(
+    put,
+    path = "/v1/channel-properties/{channel_property_id}/controls",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn set_property_controls(
     State(state): State<AppState>,
@@ -524,6 +623,17 @@ pub async fn set_property_controls(
 }
 
 // ── -ARI Publication ──
+#[utoipa::path(
+    post,
+    path = "/v1/channels/{channel_id}/ari/push",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn push_ari(
     State(state): State<AppState>,
@@ -621,6 +731,17 @@ pub async fn push_ari(
         serde_json::json!({ "channel_id": channel_id, "records_pushed": pushed, "status": "SYNCED" }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/channels/{channel_id}/content/push",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn push_content(
     State(state): State<AppState>,
@@ -660,6 +781,17 @@ pub async fn push_content(
         serde_json::json!({ "channel_id": channel_id, "status": "SYNCED" }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/channels/{channel_id}/controls/push",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn push_controls(
     State(state): State<AppState>,
@@ -699,6 +831,17 @@ pub async fn push_controls(
         serde_json::json!({ "channel_id": channel_id, "status": "SYNCED" }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/sync/retry",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn retry_failed_syncs(
     State(state): State<AppState>,
@@ -744,6 +887,17 @@ pub async fn retry_failed_syncs(
 }
 
 // ── -Reservation Delivery ──
+#[utoipa::path(
+    post,
+    path = "/v1/channels/{channel_code}/reservations",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn receive_reservation(
     State(state): State<AppState>,
@@ -856,6 +1010,17 @@ pub async fn receive_reservation(
         serde_json::json!({ "booking_id": booking_id, "reservation_id": reservation_id, "status": "DELIVERED" }),
     ))
 }
+#[utoipa::path(
+    put,
+    path = "/v1/channels/{channel_code}/reservations/{booking_id}",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn update_channel_reservation(
     State(state): State<AppState>,
@@ -912,6 +1077,17 @@ pub async fn update_channel_reservation(
         serde_json::json!({ "booking_id": booking_id, "reservation_id": reservation_id, "status": row.get::<String, _>("status") }),
     ))
 }
+#[utoipa::path(
+    post,
+    path = "/v1/channels/{channel_code}/reservations/{booking_id}/status",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn push_reservation_status(
     State(state): State<AppState>,
@@ -948,6 +1124,17 @@ pub async fn push_reservation_status(
 }
 
 // ── -Channel-Facing API ──
+#[utoipa::path(
+    get,
+    path = "/v1/channels/{channel_code}/properties",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn get_channel_properties(
     State(state): State<AppState>,
@@ -977,6 +1164,17 @@ pub async fn get_channel_properties(
         serde_json::json!({ "channel_code": channel_code, "properties": items }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/channels/{channel_code}/properties/{property_code}/content",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn get_channel_property_content(
     State(state): State<AppState>,
@@ -1025,7 +1223,7 @@ pub async fn get_channel_property_content(
 /// `GET /v1/channels/{channel_code}/properties/{property_code}/ari`
 #[utoipa::path(
     get,
-    path = "/v1/admin/availability",
+    path = "/v1/channels/{channel_code}/properties/{property_code}/ari",
     responses(
         (status = 200, description = "Channel availability (ARI)", body = serde_json::Value),
         (status = 403, description = "Missing distrib:admin scope"),
@@ -1088,6 +1286,17 @@ pub async fn get_channel_ari(
         serde_json::json!({ "channel_code": channel_code, "property_id": property_code, "ari": ari }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/channels/{channel_code}/properties/{property_code}/controls",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn get_channel_controls(
     State(state): State<AppState>,
@@ -1124,6 +1333,17 @@ pub async fn get_channel_controls(
 }
 
 // ── -Hardening ──
+#[utoipa::path(
+    get,
+    path = "/v1/channels/{channel_code}/validate",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn validate_channel_credentials(
     State(state): State<AppState>,
@@ -1154,6 +1374,17 @@ pub async fn validate_channel_credentials(
         serde_json::json!({ "channel_code": channel_code, "valid": valid }),
     ))
 }
+#[utoipa::path(
+    get,
+    path = "/v1/sync-log",
+    responses(
+        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(),
+    tag = "distrib",
+)]
 
 pub async fn get_sync_log(
     State(state): State<AppState>,
