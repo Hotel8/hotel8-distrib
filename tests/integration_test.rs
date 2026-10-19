@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:Distrib
 // SPDX-License-Identifier: Apache-2.0
 
-//! Hotel8:Distrib integration tests (test-strategy Layer 3) — DB-free.
+//! Hotel8:Distrib integration tests (test-strategy Layer 3) - DB-free.
 //!
 //! Exercises the extracted sync state, channel price math and booking-status
 //! mapping exactly as `push_ari` / `retry_failed_syncs` /
@@ -56,6 +56,6 @@ fn booking_status_mapping_delivery_flow() {
 
 #[test]
 fn round_trip_after_retry_label_write() {
-    // The retry UPDATE writes 'RETRY' — reading it back parses to Retry.
+    // The retry UPDATE writes 'RETRY' - reading it back parses to Retry.
     assert_eq!(SyncState::from_label("RETRY"), Retry);
 }

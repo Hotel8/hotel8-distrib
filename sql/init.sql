@@ -3,7 +3,7 @@
 -- SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:Distrib
 -- SPDX-License-Identifier: Apache-2.0
 
--- Hotel8:Distribution — Distribution service tables (channel manager).
+-- Hotel8:Distribution - Distribution service tables (channel manager).
 CREATE SCHEMA IF NOT EXISTS distrib;
 DO $$ BEGIN
     CREATE TYPE distrib.channel_type AS ENUM ('OTA', 'GDS', 'DIRECT', 'WHOLESALER', 'CORPORATE', 'METASEARCH');
@@ -96,7 +96,7 @@ CREATE POLICY distrib_iu_rls ON distrib.inventory_updates USING (channel_id IN (
 DROP POLICY IF EXISTS distrib_bookings_rls ON distrib.bookings;
 CREATE POLICY distrib_bookings_rls ON distrib.bookings USING (sentin8_context_initialized() AND env_id = sentin8_current_env_id());
 -- ──────────────────────────────────────────────────────────────────────────
--- Local outbox (DBX, architecture-principles §6.7) — producer path:
+-- Local outbox (DBX, architecture-principles §6.7) - producer path:
 -- rows are appended in the SAME transaction as the domain change; the
 -- shell's post-commit relay pushes them to Bus POST /v1/produce
 -- (M2M sentin8:bus:produce, idempotency_key = row id).
@@ -145,7 +145,7 @@ CREATE TRIGGER outbox_notify_trigger
 -- Local audit journal (architecture-principles §6.8): same-transaction
 -- journal rows; the shell's post-commit pusher ships them to Sys
 -- POST /v1/audit (M2M sentin8:sys:audit:write). A Sys outage only delays
--- delivery — rows persist until pushed.
+-- delivery - rows persist until pushed.
 -- Generated from sentin8_audit::audit_journal_sql("distrib").
 -- ──────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS distrib.audit_journal (

@@ -1,8 +1,8 @@
-# Hotel8:Distrib — Detailed Design Document
+# Hotel8:Distrib - Detailed Design Document
 
 ## 1. Scope & Context
 
-**Owned by Distrib:** database `hotel8`, schema `distrib` — 12 tables
+**Owned by Distrib:** database `hotel8`, schema `distrib` - 12 tables
 (`distrib.channels`, `channel_properties`, `room_type_mappings`,
 `rate_plan_mappings`, `rate_updates`, `inventory_updates`, `bookings`,
 `sync_log`, + `distrib.channel_type` / `distrib.sync_status` enums +
@@ -11,7 +11,7 @@ ARI-republication direct consumer; RFW admin pages.
 
 **NOT owned:** room inventory/rates truth (hotel8:pms), actual reservation
 state in-house (hotel8:pms holds it via received bookings), identity (Auth),
-delivery of channel payloads (the channels are external systems — Bus events
+delivery of channel payloads (the channels are external systems - Bus events
 describe business facts; transport contracts are per-channel integration).
 
 ### System context
@@ -62,7 +62,7 @@ graph LR
     CON4[consumer task: PMS inventory] --> REPUB[per-mapping ARI republish]
 ```
 
-### Request lifecycle — ARI push
+### Request lifecycle - ARI push
 
 ```mermaid
 sequenceDiagram
@@ -78,7 +78,7 @@ sequenceDiagram
     Note over RMs,DB: channel deliveries reconcile via sync_log, sync:retried on failure
 ```
 
-### Request lifecycle — channel booking intake
+### Request lifecycle - channel booking intake
 
 ```mermaid
 sequenceDiagram
@@ -110,12 +110,12 @@ erDiagram
 ```
 
 - `channel_type`: OTA/GDS/DIRECT/WHOLESALER/CORPORATE/METASEARCH (enum).
-- `sync_status`: pending/synced/failed/retry (enum) — the SyncState machine
+- `sync_status`: pending/synced/failed/retry (enum) - the SyncState machine
   mirrors it.
 - All env-scoped + FORCE-RLS; audit journal included; channel secrets are
   NOT stored here (meta owns channel credentials).
 
-### State machine — sync
+### State machine - sync
 
 ```mermaid
 stateDiagram-v2
@@ -143,12 +143,12 @@ stateDiagram-v2
 **Admin/RFU**: RFW pages + shared policy admin (per-channel ARI edit
 windows as ABAC; channel-partner edges as ReBAC).
 
-### Cross-service data access — decision order (membus → bus → owner API)
+### Cross-service data access - decision order (membus → bus → owner API)
 
 ARI fan-out is event-first: `hotel8:pms:inventory:updated` (consumer group
-`distrib-ari`) re-maps availability per channel — the bus path. Owner-API
+`distrib-ari`) re-maps availability per channel - the bus path. Owner-API
 residuals are synchronous request/response that must return a value:
-channel booking intake pushes reservations into PMS (`create_reservation` —
+channel booking intake pushes reservations into PMS (`create_reservation` -
 the caller needs the confirmation number), ARI pull reads the 30-day
 inventory window (`get_inventory`), cancellations propagate
 (`cancel_reservation`). MemBus: none (channel sync is horizon-scoped, not
@@ -184,7 +184,7 @@ sequenceDiagram
 flowchart TD
     A[Channel delivery failure] --> B[sync_log row + RETRY state]
     B --> C{retries exhausted?}
-    C -->|yes| D[FAILED — replay available]
+    C -->|yes| D[FAILED - replay available]
     C -->|no| E[backoff then retry; sync:retried event]
     F[PMS reject on intake] --> G[booking stays channel-pending; error surfaced to channel]
     H[Bus outage] --> I[outbox persists; relay retry]
@@ -201,7 +201,7 @@ graph LR
     CON5[consumer] -- SSE --> B4
 ```
 
-- Hot path: ARI republish from PMS inventory events — batch per channel
+- Hot path: ARI republish from PMS inventory events - batch per channel
   property from a single event; channel delivery is downstream of the
   outbox, never inline.
 
@@ -221,8 +221,8 @@ graph LR
 
 ```mermaid
 graph TD
-    U4[Unit — SyncState transitions + markup math] --> I4[Integration — wiring + policy parity]
-    I4 --> E4[E2E — channel admin surfaces via BFF]
+    U4[Unit - SyncState transitions + markup math] --> I4[Integration - wiring + policy parity]
+    I4 --> E4[E2E - channel admin surfaces via BFF]
 ```
 
 ## 10. Open Questions

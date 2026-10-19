@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:Distrib
 // SPDX-License-Identifier: Apache-2.0
 
-//! Distrib HTTP handlers — channel management and rate/inventory sync.
+//! Distrib HTTP handlers - channel management and rate/inventory sync.
 use crate::config::DistribConfig;
 use crate::event_emit::{emit_on_pool, emit_tx, Publisher};
 use axum::extract::{Path, Query, State};
@@ -18,13 +18,13 @@ pub struct AppState {
     pub config: Arc<DistribConfig>,
     pub pool: sqlx::PgPool,
     pub bus_client: sentin8::bus::client::BusClient,
-    /// Cross-service PMS client (B1) — replaces direct pms_* SQL.
+    /// Cross-service PMS client (B1) - replaces direct pms_* SQL.
     pub pms_client: hotel8::pms::client::H8pmsClient,
-    /// Shield policy engine: step 5 is the ONLY gate —
-    /// handlers verify the token (steps 1–4) then evaluate a
+    /// Shield policy engine: step 5 is the ONLY gate -
+    /// handlers verify the token (steps 1-4) then evaluate a
     /// `hotel8:distrib:<resource>:<action>` target; no JWT scope check remains.
     pub policy: Arc<crate::policy::Engine>,
-    /// Shared Sentin8:Policy admin surface — same engine
+    /// Shared Sentin8:Policy admin surface - same engine
     /// instance the request path evaluates.
     pub admin: sentin8::shield::admin::SharedAdminState,
 }
@@ -43,7 +43,7 @@ fn err_db(e: sqlx::Error) -> (StatusCode, String) {
 }
 
 /// Map an outbox-emission failure to a 500 (DBX: a silently lost
-/// event is a contract violation — same 500 contract as `err_db`).
+/// event is a contract violation - same 500 contract as `err_db`).
 fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }
@@ -660,7 +660,7 @@ pub async fn push_ari(
     // caller-supplied explicit start/end override it (accepted for API compat).
     let _start_date = req.get("start_date").and_then(|v| v.as_str()).unwrap_or("");
     let _end_date = req.get("end_date").and_then(|v| v.as_str()).unwrap_or("");
-    // Transform ARI — apply markup, map room types/rate plans
+    // Transform ARI - apply markup, map room types/rate plans
     let channel_props = sqlx::query("SELECT id, rate_markup_pct, rate_markdown_pct FROM distrib.channel_properties WHERE channel_id = $1 AND ($2::uuid IS NULL OR property_id = $2) AND is_enabled = true")
         .bind(channel_id).bind(property_id).fetch_all(&mut *conn).await.map_err(err_db)?;
     let mut pushed = 0;
@@ -1047,7 +1047,7 @@ pub async fn update_channel_reservation(
         .bind(booking_id).bind(status).fetch_optional(&mut *conn).await.map_err(err_db)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "booking not found".to_string()))?;
     let reservation_id: Option<uuid::Uuid> = row.get("reservation_id");
-    // Update PMS reservation if linked — cancel via the PMS HTTP API.
+    // Update PMS reservation if linked - cancel via the PMS HTTP API.
     if let Some(res_id) = reservation_id {
         if status == "CANCELLED" {
             let b = sqlx::query("SELECT property_id FROM distrib.bookings WHERE id = $1")

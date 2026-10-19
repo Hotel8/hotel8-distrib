@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "hotel8-distrib",
-    "description": "Sentin8 Hotel8:Distrib — Distribution service.",
+    "description": "Sentin8 Hotel8:Distrib - Distribution service.",
     "license": {
       "name": "MIT OR Apache-2.0",
       "identifier": "MIT OR Apache-2.0"
@@ -651,7 +651,7 @@
   "tags": [
     {
       "name": "distrib",
-      "description": "Hotel8:Distrib admin API — availability, channels"
+      "description": "Hotel8:Distrib admin API - availability, channels"
     }
   ]
 }

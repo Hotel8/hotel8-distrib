@@ -3,10 +3,10 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Hotel8:Distrib
 // SPDX-License-Identifier: Apache-2.0
 
-//! Pure distrib sync state — DB-free, testable.
+//! Pure distrib sync state - DB-free, testable.
 //!
 //! `SyncState` over the `hotel8.distrib_sync_status` DB enum labels
-//! (PENDING/SYNCED/FAILED/RETRY — see `services/distrib/sql/init.sql`), the
+//! (PENDING/SYNCED/FAILED/RETRY - see `services/distrib/sql/init.sql`), the
 //! retry-eligibility rule from `retry_failed_syncs` (FAILED + window elapsed),
 //! and the channel markup/markdown price math.
 

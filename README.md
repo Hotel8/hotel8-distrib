@@ -1,4 +1,4 @@
-# README.md: Hotel8:Distrib — Channel Distribution
+# README.md: Hotel8:Distrib - Channel Distribution
 
 ## 1. Summary
 
@@ -38,28 +38,28 @@ graph TD
 
 ## 4. Key Traits and Data Structures
 
-- `SyncState` — pure state machine over the `sync_status` enum labels
+- `SyncState` - pure state machine over the `sync_status` enum labels
   (pending → synced/failed/retry); sync attempts are replayable from
   `distrib.sync_log`.
-- Channel-property/room-type/rate-plan mappings — the translation tables
+- Channel-property/room-type/rate-plan mappings - the translation tables
   that make PMS inventory speak channel dialects.
-- `Publisher` — caller identity for outbox rows.
+- `Publisher` - caller identity for outbox rows.
 
 ## 5. Rationale, Trade-offs, and Alternatives
 
-- **Mappings as first-class rows** — audit-friendly, tenant-editable,
+- **Mappings as first-class rows** - audit-friendly, tenant-editable,
   testable; in-code translation would couple channel onboarding to deploys.
-- **ARI push with idempotent inventory updates** — channel redelivery is
+- **ARI push with idempotent inventory updates** - channel redelivery is
   safe; the updates table records every push for dispute support.
-- **Event-first republication** — PMS inventory ticks republish instantly;
+- **Event-first republication** - PMS inventory ticks republish instantly;
   polling channels' changes would lag sales.
-- **Channel partner ReBAC edges** — per-channel ARI edit windows are
+- **Channel partner ReBAC edges** - per-channel ARI edit windows are
   tenant-authored policy (ABAC), keeping commercial terms out of code.
 
 ## 6. Internal Implementation & Invariants (Private Design)
 
 - Booking intake writes the reservation with its channel reference and emits
-  `reservation:received` — never mutates PMS directly (PMS owns inventory).
+  `reservation:received` - never mutates PMS directly (PMS owns inventory).
 - Sync retries are capped and logged; exhausted rows stay for manual replay.
 - Rate markups/markdowns are stored per channel-property with their
   commercial context; the computed channel rate is deterministic.

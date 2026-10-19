@@ -26,7 +26,7 @@ impl DistribConfig {
                 .expect("HOTEL8_DISTRIB_PORT must be set by captain")
                 .parse()
                 .expect("HOTEL8_DISTRIB_PORT must be a number"),
-            // DBX (§VDC.3) — required DSN, vertical database (hotel8), no
+            // DBX (§VDC.3) - required DSN, vertical database (hotel8), no
             // platform-database fallback.
             database_url: env::var("HOTEL8_DISTRIB_DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://hotel8_distrib_service@localhost:5432/hotel8".into()
