@@ -55,7 +55,57 @@ use utoipa::OpenApi;
         crate::handlers::get_sync_log,
         crate::handlers::health,
     ),
-    components(schemas()),
+    components(schemas(
+        // Health.
+        hotel8::distrib::contracts::HealthDetail,
+        // Channels.
+        hotel8::distrib::contracts::ChannelCreateRequest,
+        hotel8::distrib::contracts::ChannelCreated,
+        hotel8::distrib::contracts::ChannelList,
+        hotel8::distrib::contracts::ChannelRow,
+        hotel8::distrib::contracts::ChannelUpdateRequest,
+        hotel8::distrib::contracts::ChannelUpdated,
+        // Channel-property mapping + controls.
+        hotel8::distrib::contracts::ChannelPropertyMapRequest,
+        hotel8::distrib::contracts::ChannelPropertyMapped,
+        hotel8::distrib::contracts::ChannelPropertyList,
+        hotel8::distrib::contracts::ChannelPropertyRow,
+        hotel8::distrib::contracts::RateMarkupRequest,
+        hotel8::distrib::contracts::RateMarkupResult,
+        hotel8::distrib::contracts::PropertyControlsRequest,
+        hotel8::distrib::contracts::PropertyControlsResult,
+        // Room-type / rate-plan mappings.
+        hotel8::distrib::contracts::RoomTypeMapRequest,
+        hotel8::distrib::contracts::RoomTypeMapped,
+        hotel8::distrib::contracts::RatePlanMapRequest,
+        hotel8::distrib::contracts::RatePlanMapped,
+        // ARI / content / controls push + sync.
+        hotel8::distrib::contracts::AriPushRequest,
+        hotel8::distrib::contracts::AriPushResult,
+        hotel8::distrib::contracts::ContentPushRequest,
+        hotel8::distrib::contracts::PushAck,
+        hotel8::distrib::contracts::SyncRetryResult,
+        // Reservation delivery.
+        hotel8::distrib::contracts::ChannelReservationRequest,
+        hotel8::distrib::contracts::ChannelReservationDelivered,
+        hotel8::distrib::contracts::ChannelReservationUpdate,
+        hotel8::distrib::contracts::ChannelReservationUpdateResult,
+        hotel8::distrib::contracts::ReservationStatusPush,
+        hotel8::distrib::contracts::ReservationStatusPushed,
+        // Channel-facing reads.
+        hotel8::distrib::contracts::ChannelSellableProperties,
+        hotel8::distrib::contracts::ChannelSellableProperty,
+        hotel8::distrib::contracts::ChannelPropertyContent,
+        hotel8::distrib::contracts::ChannelContentRoomType,
+        hotel8::distrib::contracts::ChannelAri,
+        hotel8::distrib::contracts::ChannelAriLine,
+        hotel8::distrib::contracts::ChannelControlsResponse,
+        hotel8::distrib::contracts::ChannelControls,
+        hotel8::distrib::contracts::ChannelCredentialValidation,
+        // Sync log.
+        hotel8::distrib::contracts::SyncLogList,
+        hotel8::distrib::contracts::SyncLogRow,
+    )),
     security(),
     tags(
         (name = "policy", description = "Shield policy administration (shared surface)"),

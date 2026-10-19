@@ -9,6 +9,21 @@ use crate::event_emit::{emit_on_pool, emit_tx, Publisher};
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
+use hotel8::distrib::contracts::{
+    AriPushRequest, AriPushResult, ChannelCreated, ChannelCreateRequest,
+    ChannelCredentialValidation, ChannelList, ChannelPropertyContent,
+    ChannelContentRoomType, ChannelPropertyList, ChannelPropertyMapRequest,
+    ChannelPropertyMapped, ChannelPropertyRow, ChannelReservationDelivered,
+    ChannelReservationRequest, ChannelReservationUpdate, ChannelReservationUpdateResult,
+    ChannelRow, ChannelSellableProperties, ChannelSellableProperty, ChannelUpdated,
+    ChannelUpdateRequest, ContentPushRequest, HealthDetail, PropertyControlsRequest,
+    PropertyControlsResult, PushAck, RateMarkupRequest, RateMarkupResult,
+    RatePlanMapRequest, RatePlanMapped, ReservationStatusPush, ReservationStatusPushed,
+    RoomTypeMapRequest, RoomTypeMapped, SyncLogList, SyncLogRow, SyncRetryResult,
+};
+use hotel8::distrib::contracts::{
+    ChannelAri, ChannelAriLine, ChannelControls, ChannelControlsResponse,
+};
 use sentin8::auth::client::AuthContext;
 use sqlx::Row;
 use std::sync::Arc;
@@ -51,7 +66,7 @@ fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (StatusCode, String) {
     get,
     path = "/v1/health",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "OK", body = HealthDetail),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -61,19 +76,23 @@ fn err_emit(e: sentin8::bus::outbox::OutboxError) -> (StatusCode, String) {
 
 pub async fn health(
     axum::extract::State(_state): axum::extract::State<AppState>,
-) -> axum::Json<serde_json::Value> {
-    axum::Json(
-        serde_json::json!({ "status": "ok", "service": "distrib", "version": sentin8::build_info::id(), "build": sentin8::build_info::build_hash() }),
-    )
+) -> axum::Json<HealthDetail> {
+    axum::Json(HealthDetail {
+        status: "ok".to_string(),
+        service: "distrib".to_string(),
+        version: sentin8::build_info::id(),
+        build: sentin8::build_info::build_hash().to_string(),
+    })
 }
 
 /// `POST /v1/channels`
 #[utoipa::path(
     post,
     path = "/v1/channels",
-    request_body = serde_json::Value,
+    request_body = ChannelCreateRequest,
     responses(
-        (status = 200, description = "Channel created", body = serde_json::Value),
+        (status = 200, description = "Channel created", body = ChannelCreated),
+        (status = 400, description = "property_id required"),
         (status = 403, description = "Missing distrib:admin scope"),
     ),
     security(("distrib:admin" = [])),
@@ -82,8 +101,8 @@ pub async fn health(
 pub async fn create_channel(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ChannelCreateRequest>,
+) -> Result<Json<ChannelCreated>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -95,25 +114,12 @@ pub async fn create_channel(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let property_id: uuid::Uuid = req
-        .get("property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "property_id required".to_string()))?;
-    let channel_code = req
-        .get("channel_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let channel_name = req
-        .get("channel_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let channel_type = req
-        .get("channel_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("OTA");
+    let property_id = req.property_id;
+    let channel_code = req.channel_code.clone();
+    let channel_name = req.channel_name.clone();
+    let channel_type = req.channel_type.clone();
     let row = sqlx::query("INSERT INTO distrib.channels (property_id, env_id, channel_code, channel_name, channel_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, channel_code, channel_name, channel_type, is_active")
-        .bind(property_id).bind(env_id).bind(channel_code).bind(channel_name).bind(channel_type)
+        .bind(property_id).bind(env_id).bind(&channel_code).bind(&channel_name).bind(&channel_type)
         .fetch_one(&mut *conn).await.map_err(err_db)?;
     let id: uuid::Uuid = row.get("id");
     let ct: String = row.get("channel_type");
@@ -127,9 +133,14 @@ pub async fn create_channel(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "property_id": property_id, "channel_code": row.get::<String, _>("channel_code"), "channel_name": row.get::<String, _>("channel_name"), "channel_type": ct, "is_active": row.get::<bool, _>("is_active") }),
-    ))
+    Ok(Json(ChannelCreated {
+        id,
+        property_id,
+        channel_code: row.get::<String, _>("channel_code"),
+        channel_name: row.get::<String, _>("channel_name"),
+        channel_type: ct,
+        is_active: row.get::<bool, _>("is_active"),
+    }))
 }
 
 /// `GET /v1/channels`
@@ -137,7 +148,7 @@ pub async fn create_channel(
     get,
     path = "/v1/channels",
     responses(
-        (status = 200, description = "List of channels", body = serde_json::Value),
+        (status = 200, description = "List of channels", body = ChannelList),
         (status = 403, description = "Missing distrib:admin scope"),
     ),
     security(("distrib:admin" = [])),
@@ -147,7 +158,7 @@ pub async fn list_channels(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     axum::extract::Query(params): axum::extract::Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelList>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -168,17 +179,28 @@ pub async fn list_channels(
     } else {
         sqlx::query("SELECT id, channel_code, channel_name, channel_type::text as channel_type, is_active FROM distrib.channels ORDER BY channel_code").fetch_all(&mut *conn).await.map_err(err_db)?
     };
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({ "id": r.get::<uuid::Uuid, _>("id"), "channel_code": r.get::<String, _>("channel_code"), "channel_name": r.get::<String, _>("channel_name"), "channel_type": r.get::<String, _>("channel_type"), "is_active": r.get::<bool, _>("is_active") })).collect();
+    let items: Vec<ChannelRow> = rows
+        .iter()
+        .map(|r| ChannelRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            channel_code: r.get::<String, _>("channel_code"),
+            channel_name: r.get::<String, _>("channel_name"),
+            channel_type: r.get::<String, _>("channel_type"),
+            is_active: r.get::<bool, _>("is_active"),
+        })
+        .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ChannelList { items }))
 }
 
 // ── Channel CRUD (update + delete) ──
 #[utoipa::path(
     put,
     path = "/v1/channels/{channel_id}",
+    request_body = ChannelUpdateRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated channel", body = ChannelUpdated),
+        (status = 404, description = "Channel not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -190,8 +212,8 @@ pub async fn update_channel(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ChannelUpdateRequest>,
+) -> Result<Json<ChannelUpdated>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -203,10 +225,10 @@ pub async fn update_channel(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let channel_name = req.get("channel_name").and_then(|v| v.as_str());
-    let channel_type = req.get("channel_type").and_then(|v| v.as_str());
-    let is_active = req.get("is_active").and_then(|v| v.as_bool());
-    let api_endpoint = req.get("api_endpoint").and_then(|v| v.as_str());
+    let channel_name = req.channel_name.clone();
+    let channel_type = req.channel_type.clone();
+    let is_active = req.is_active;
+    let api_endpoint = req.api_endpoint.clone();
     let row = sqlx::query("UPDATE distrib.channels SET channel_name = COALESCE($2, channel_name), channel_type = COALESCE($3::distrib.channel_type, channel_type), is_active = COALESCE($4, is_active), api_endpoint = COALESCE($5, api_endpoint), updated_at = now() WHERE id = $1 RETURNING id, channel_code, channel_name, channel_type::text as channel_type, is_active, api_endpoint")
         .bind(channel_id).bind(channel_name).bind(channel_type).bind(is_active).bind(api_endpoint)
         .fetch_optional(&mut *conn).await.map_err(err_db)?
@@ -221,15 +243,20 @@ pub async fn update_channel(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "channel_code": row.get::<String, _>("channel_code"), "channel_name": row.get::<String, _>("channel_name"), "channel_type": row.get::<String, _>("channel_type"), "is_active": row.get::<bool, _>("is_active"), "api_endpoint": row.get::<Option<String>, _>("api_endpoint") }),
-    ))
+    Ok(Json(ChannelUpdated {
+        id: row.get::<uuid::Uuid, _>("id"),
+        channel_code: row.get::<String, _>("channel_code"),
+        channel_name: row.get::<String, _>("channel_name"),
+        channel_type: row.get::<String, _>("channel_type"),
+        is_active: row.get::<bool, _>("is_active"),
+        api_endpoint: row.get::<Option<String>, _>("api_endpoint"),
+    }))
 }
 #[utoipa::path(
     delete,
     path = "/v1/channels/{channel_id}",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 204, description = "Deleted"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -275,8 +302,10 @@ pub async fn delete_channel(
 #[utoipa::path(
     post,
     path = "/v1/channel-properties",
+    request_body = ChannelPropertyMapRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Mapped (upsert)", body = ChannelPropertyMapped),
+        (status = 400, description = "channel_id/property_id required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -287,8 +316,8 @@ pub async fn delete_channel(
 pub async fn map_channel_property(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ChannelPropertyMapRequest>,
+) -> Result<Json<ChannelPropertyMapped>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -300,20 +329,9 @@ pub async fn map_channel_property(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let channel_id = req
-        .get("channel_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
-    let property_id = req
-        .get("property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "property_id required".to_string()))?;
-    let is_enabled = req
-        .get("is_enabled")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
+    let channel_id = req.channel_id;
+    let property_id = req.property_id;
+    let is_enabled = req.is_enabled;
     let row = sqlx::query("INSERT INTO distrib.channel_properties (channel_id, property_id, env_id, is_enabled) VALUES ($1, $2, $3, $4) ON CONFLICT (channel_id, property_id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, updated_at = now() RETURNING id, is_enabled")
         .bind(channel_id).bind(property_id).bind(env_id).bind(is_enabled)
         .fetch_one(&mut *conn).await.map_err(err_db)?;
@@ -328,15 +346,18 @@ pub async fn map_channel_property(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "channel_id": channel_id, "property_id": property_id, "is_enabled": row.get::<bool, _>("is_enabled") }),
-    ))
+    Ok(Json(ChannelPropertyMapped {
+        id,
+        channel_id,
+        property_id,
+        is_enabled: row.get::<bool, _>("is_enabled"),
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/channels/{channel_id}/mapped-properties",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Mapped properties (markups as text)", body = ChannelPropertyList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -348,7 +369,7 @@ pub async fn list_channel_properties(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_id): Path<uuid::Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelPropertyList>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -362,23 +383,33 @@ pub async fn list_channel_properties(
     set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT id, channel_id, property_id, is_enabled, rate_markup_pct, rate_markdown_pct, cta_enabled, ctd_enabled, min_los, max_los FROM distrib.channel_properties WHERE channel_id = $1 ORDER BY created_at")
         .bind(channel_id).fetch_all(&mut *conn).await.map_err(err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "channel_id": r.get::<uuid::Uuid, _>("channel_id"),
-        "property_id": r.get::<uuid::Uuid, _>("property_id"), "is_enabled": r.get::<bool, _>("is_enabled"),
-        "rate_markup_pct": r.get::<String, _>("rate_markup_pct"), "rate_markdown_pct": r.get::<String, _>("rate_markdown_pct"),
-        "cta_enabled": r.get::<bool, _>("cta_enabled"), "ctd_enabled": r.get::<bool, _>("ctd_enabled"),
-        "min_los": r.get::<Option<i32>, _>("min_los"), "max_los": r.get::<Option<i32>, _>("max_los"),
-    })).collect();
+    let items: Vec<ChannelPropertyRow> = rows
+        .iter()
+        .map(|r| ChannelPropertyRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            channel_id: r.get::<uuid::Uuid, _>("channel_id"),
+            property_id: r.get::<uuid::Uuid, _>("property_id"),
+            is_enabled: r.get::<bool, _>("is_enabled"),
+            rate_markup_pct: r.get::<String, _>("rate_markup_pct"),
+            rate_markdown_pct: r.get::<String, _>("rate_markdown_pct"),
+            cta_enabled: r.get::<bool, _>("cta_enabled"),
+            ctd_enabled: r.get::<bool, _>("ctd_enabled"),
+            min_los: r.get::<Option<i32>, _>("min_los"),
+            max_los: r.get::<Option<i32>, _>("max_los"),
+        })
+        .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(ChannelPropertyList { items }))
 }
 
 // ── Room Type mapping per channel ──
 #[utoipa::path(
     post,
     path = "/v1/room-type-mappings",
+    request_body = RoomTypeMapRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Mapped (upsert)", body = RoomTypeMapped),
+        (status = 400, description = "channel_property_id/property_room_type_id/channel_room_type_code required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -389,8 +420,8 @@ pub async fn list_channel_properties(
 pub async fn map_room_type(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<RoomTypeMapRequest>,
+) -> Result<Json<RoomTypeMapped>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -402,53 +433,32 @@ pub async fn map_room_type(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let channel_property_id = req
-        .get("channel_property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "channel_property_id required".to_string(),
-            )
-        })?;
-    let property_room_type_id = req
-        .get("property_room_type_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "property_room_type_id required".to_string(),
-            )
-        })?;
-    let channel_room_type_code = req
-        .get("channel_room_type_code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "channel_room_type_code required".to_string(),
-            )
-        })?;
+    let channel_property_id = req.channel_property_id;
+    let property_room_type_id = req.property_room_type_id;
+    let channel_room_type_code = req.channel_room_type_code.clone();
     let row = sqlx::query("INSERT INTO distrib.room_type_mappings (channel_property_id, property_room_type_id, channel_room_type_code) VALUES ($1, $2, $3) ON CONFLICT (channel_property_id, property_room_type_id) DO UPDATE SET channel_room_type_code = EXCLUDED.channel_room_type_code RETURNING id")
-        .bind(channel_property_id).bind(property_room_type_id).bind(channel_room_type_code)
+        .bind(channel_property_id).bind(property_room_type_id).bind(&channel_room_type_code)
         .fetch_one(&mut *conn).await.map_err(err_db)?;
     let id: uuid::Uuid = row.get("id");
     emit_tx(&mut *conn, env_id, "hotel8:distrib:room_type:mapped", serde_json::json!({ "channel_property_id": channel_property_id, "property_room_type_id": property_room_type_id }),
         &Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "channel_property_id": channel_property_id, "property_room_type_id": property_room_type_id, "channel_room_type_code": channel_room_type_code }),
-    ))
+    Ok(Json(RoomTypeMapped {
+        id,
+        channel_property_id,
+        property_room_type_id,
+        channel_room_type_code,
+    }))
 }
 
 // ── Rate Plan mapping per channel ──
 #[utoipa::path(
     post,
     path = "/v1/rate-plan-mappings",
+    request_body = RatePlanMapRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Mapped (upsert)", body = RatePlanMapped),
+        (status = 400, description = "channel_property_id/property_rate_plan_id/channel_rate_plan_code required"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -459,8 +469,8 @@ pub async fn map_room_type(
 pub async fn map_rate_plan(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<RatePlanMapRequest>,
+) -> Result<Json<RatePlanMapped>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -472,53 +482,32 @@ pub async fn map_rate_plan(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let channel_property_id = req
-        .get("channel_property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "channel_property_id required".to_string(),
-            )
-        })?;
-    let property_rate_plan_id = req
-        .get("property_rate_plan_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "property_rate_plan_id required".to_string(),
-            )
-        })?;
-    let channel_rate_plan_code = req
-        .get("channel_rate_plan_code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "channel_rate_plan_code required".to_string(),
-            )
-        })?;
+    let channel_property_id = req.channel_property_id;
+    let property_rate_plan_id = req.property_rate_plan_id;
+    let channel_rate_plan_code = req.channel_rate_plan_code.clone();
     let row = sqlx::query("INSERT INTO distrib.rate_plan_mappings (channel_property_id, property_rate_plan_id, channel_rate_plan_code) VALUES ($1, $2, $3) ON CONFLICT (channel_property_id, property_rate_plan_id) DO UPDATE SET channel_rate_plan_code = EXCLUDED.channel_rate_plan_code RETURNING id")
-        .bind(channel_property_id).bind(property_rate_plan_id).bind(channel_rate_plan_code)
+        .bind(channel_property_id).bind(property_rate_plan_id).bind(&channel_rate_plan_code)
         .fetch_one(&mut *conn).await.map_err(err_db)?;
     let id: uuid::Uuid = row.get("id");
     emit_tx(&mut *conn, env_id, "hotel8:distrib:rate_plan:mapped", serde_json::json!({ "channel_property_id": channel_property_id, "property_rate_plan_id": property_rate_plan_id }),
         &Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": id, "channel_property_id": channel_property_id, "property_rate_plan_id": property_rate_plan_id, "channel_rate_plan_code": channel_rate_plan_code }),
-    ))
+    Ok(Json(RatePlanMapped {
+        id,
+        channel_property_id,
+        property_rate_plan_id,
+        channel_rate_plan_code,
+    }))
 }
 
 // ── Rate markup/markdown per channel ──
 #[utoipa::path(
     put,
     path = "/v1/channel-properties/{channel_property_id}/markup",
+    request_body = RateMarkupRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated (percentages as text)", body = RateMarkupResult),
+        (status = 404, description = "Channel property not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -530,8 +519,8 @@ pub async fn set_rate_markup(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<RateMarkupRequest>,
+) -> Result<Json<RateMarkupResult>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -543,32 +532,30 @@ pub async fn set_rate_markup(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let markup_pct = req
-        .get("rate_markup_pct")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    let markdown_pct = req
-        .get("rate_markdown_pct")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
+    let markup_pct = req.rate_markup_pct.clone();
+    let markdown_pct = req.rate_markdown_pct.clone();
     let row = sqlx::query("UPDATE distrib.channel_properties SET rate_markup_pct = $2, rate_markdown_pct = $3, updated_at = now() WHERE id = $1 RETURNING id, rate_markup_pct::text as rate_markup_pct, rate_markdown_pct::text as rate_markdown_pct")
-        .bind(channel_property_id).bind(markup_pct).bind(markdown_pct)
+        .bind(channel_property_id).bind(&markup_pct).bind(&markdown_pct)
         .fetch_optional(&mut *conn).await.map_err(err_db)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "channel property not found".to_string()))?;
     emit_tx(&mut *conn, env_id, "hotel8:distrib:rate_markup:set", serde_json::json!({ "channel_property_id": channel_property_id, "markup_pct": markup_pct, "markdown_pct": markdown_pct }),
         &Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "rate_markup_pct": row.get::<String, _>("rate_markup_pct"), "rate_markdown_pct": row.get::<String, _>("rate_markdown_pct") }),
-    ))
+    Ok(Json(RateMarkupResult {
+        id: row.get::<uuid::Uuid, _>("id"),
+        rate_markup_pct: row.get::<String, _>("rate_markup_pct"),
+        rate_markdown_pct: row.get::<String, _>("rate_markdown_pct"),
+    }))
 }
 
 // ── Property controls per channel ──
 #[utoipa::path(
     put,
     path = "/v1/channel-properties/{channel_property_id}/controls",
+    request_body = PropertyControlsRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated controls", body = PropertyControlsResult),
+        (status = 404, description = "Channel property not found"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -580,8 +567,8 @@ pub async fn set_property_controls(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_property_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<PropertyControlsRequest>,
+) -> Result<Json<PropertyControlsResult>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -593,16 +580,10 @@ pub async fn set_property_controls(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let cta_enabled = req.get("cta_enabled").and_then(|v| v.as_bool());
-    let ctd_enabled = req.get("ctd_enabled").and_then(|v| v.as_bool());
-    let min_los: Option<i32> = req
-        .get("min_los")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32);
-    let max_los: Option<i32> = req
-        .get("max_los")
-        .and_then(|v| v.as_i64())
-        .map(|n| n as i32);
+    let cta_enabled = req.cta_enabled;
+    let ctd_enabled = req.ctd_enabled;
+    let min_los: Option<i32> = req.min_los;
+    let max_los: Option<i32> = req.max_los;
     let row = sqlx::query("UPDATE distrib.channel_properties SET cta_enabled = COALESCE($2, cta_enabled), ctd_enabled = COALESCE($3, ctd_enabled), min_los = COALESCE($4, min_los), max_los = COALESCE($5, max_los), updated_at = now() WHERE id = $1 RETURNING id, cta_enabled, ctd_enabled, min_los, max_los")
         .bind(channel_property_id).bind(cta_enabled).bind(ctd_enabled).bind(min_los).bind(max_los)
         .fetch_optional(&mut *conn).await.map_err(err_db)?
@@ -617,17 +598,24 @@ pub async fn set_property_controls(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "id": row.get::<uuid::Uuid, _>("id"), "cta_enabled": row.get::<bool, _>("cta_enabled"), "ctd_enabled": row.get::<bool, _>("ctd_enabled"), "min_los": row.get::<Option<i32>, _>("min_los"), "max_los": row.get::<Option<i32>, _>("max_los") }),
-    ))
+    Ok(Json(PropertyControlsResult {
+        id: row.get::<uuid::Uuid, _>("id"),
+        cta_enabled: row.get::<bool, _>("cta_enabled"),
+        ctd_enabled: row.get::<bool, _>("ctd_enabled"),
+        min_los: row.get::<Option<i32>, _>("min_los"),
+        max_los: row.get::<Option<i32>, _>("max_los"),
+    }))
 }
 
 // ── -ARI Publication ──
 #[utoipa::path(
     post,
     path = "/v1/channels/{channel_id}/ari/push",
+    request_body = AriPushRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "ARI pushed", body = AriPushResult),
+        (status = 400, description = "property_id required for ARI push"),
+        (status = 502, description = "PMS inventory read failed"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -639,8 +627,8 @@ pub async fn push_ari(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<AriPushRequest>,
+) -> Result<Json<AriPushResult>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -652,14 +640,11 @@ pub async fn push_ari(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let property_id = req
-        .get("property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let property_id = req.property_id;
     // The PMS API call below uses a rolling 30-day window from today;
     // caller-supplied explicit start/end override it (accepted for API compat).
-    let _start_date = req.get("start_date").and_then(|v| v.as_str()).unwrap_or("");
-    let _end_date = req.get("end_date").and_then(|v| v.as_str()).unwrap_or("");
+    let _start_date = req.start_date.clone();
+    let _end_date = req.end_date.clone();
     // Transform ARI - apply markup, map room types/rate plans
     let channel_props = sqlx::query("SELECT id, rate_markup_pct, rate_markdown_pct FROM distrib.channel_properties WHERE channel_id = $1 AND ($2::uuid IS NULL OR property_id = $2) AND is_enabled = true")
         .bind(channel_id).bind(property_id).fetch_all(&mut *conn).await.map_err(err_db)?;
@@ -727,15 +712,18 @@ pub async fn push_ari(
     emit_tx(&mut *conn, env_id, "hotel8:distrib:ari:pushed", serde_json::json!({ "channel_id": channel_id, "property_id": property_id, "records_pushed": pushed }),
         &Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_id": channel_id, "records_pushed": pushed, "status": "SYNCED" }),
-    ))
+    Ok(Json(AriPushResult {
+        channel_id,
+        records_pushed: pushed,
+        status: "SYNCED".to_string(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/channels/{channel_id}/content/push",
+    request_body = ContentPushRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Content pushed", body = PushAck),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -747,8 +735,8 @@ pub async fn push_content(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ContentPushRequest>,
+) -> Result<Json<PushAck>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -760,10 +748,7 @@ pub async fn push_content(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let property_id = req
-        .get("property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let property_id = req.property_id;
     // In production: POST to channel API endpoint with property content
     sqlx::query("INSERT INTO distrib.sync_log (channel_id, property_id, sync_type, status) VALUES ($1, $2, 'CONTENT', 'SYNCED')")
         .bind(channel_id).bind(property_id).execute(&mut *conn).await.map_err(err_db)?;
@@ -777,15 +762,17 @@ pub async fn push_content(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_id": channel_id, "status": "SYNCED" }),
-    ))
+    Ok(Json(PushAck {
+        channel_id,
+        status: "SYNCED".to_string(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/channels/{channel_id}/controls/push",
+    request_body = ContentPushRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Controls pushed", body = PushAck),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -797,8 +784,8 @@ pub async fn push_controls(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_id): Path<uuid::Uuid>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ContentPushRequest>,
+) -> Result<Json<PushAck>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -810,10 +797,7 @@ pub async fn push_controls(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let property_id = req
-        .get("property_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+    let property_id = req.property_id;
     // In production: POST to channel API endpoint with property controls
     sqlx::query("INSERT INTO distrib.sync_log (channel_id, property_id, sync_type, status) VALUES ($1, $2, 'CONTROLS', 'SYNCED')")
         .bind(channel_id).bind(property_id).execute(&mut *conn).await.map_err(err_db)?;
@@ -827,15 +811,16 @@ pub async fn push_controls(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_id": channel_id, "status": "SYNCED" }),
-    ))
+    Ok(Json(PushAck {
+        channel_id,
+        status: "SYNCED".to_string(),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/sync/retry",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Retry scheduled", body = SyncRetryResult),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -846,7 +831,7 @@ pub async fn push_controls(
 pub async fn retry_failed_syncs(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SyncRetryResult>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -883,16 +868,20 @@ pub async fn retry_failed_syncs(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "retried_count": retried })))
+    Ok(Json(SyncRetryResult {
+        retried_count: retried,
+    }))
 }
 
 // ── -Reservation Delivery ──
 #[utoipa::path(
     post,
     path = "/v1/channels/{channel_code}/reservations",
+    request_body = ChannelReservationRequest,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
-        (status = 401, description = "Not authenticated"),
+        (status = 200, description = "Delivered to PMS", body = ChannelReservationDelivered),
+        (status = 401, description = "Invalid channel"),
+        (status = 502, description = "PMS reservation create failed"),
         (status = 403, description = "Forbidden"),
     ),
     security(),
@@ -903,8 +892,8 @@ pub async fn receive_reservation(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_code): Path<String>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ChannelReservationRequest>,
+) -> Result<Json<ChannelReservationDelivered>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -927,33 +916,18 @@ pub async fn receive_reservation(
     .ok_or_else(|| (StatusCode::UNAUTHORIZED, "invalid channel".to_string()))?;
     let channel_id: uuid::Uuid = channel.get("id");
     let property_id: uuid::Uuid = channel.get("property_id");
-    let channel_booking_id = req
-        .get("channel_booking_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let guest_name = req.get("guest_name").and_then(|v| v.as_str()).unwrap_or("");
-    let arrival_date = req
-        .get("arrival_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("2026-01-01");
-    let departure_date = req
-        .get("departure_date")
-        .and_then(|v| v.as_str())
-        .unwrap_or("2026-01-02");
-    let num_rooms: i32 = req.get("num_rooms").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-    let total_amount = req
-        .get("total_amount")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    let currency_code = req
-        .get("currency_code")
-        .and_then(|v| v.as_str())
-        .unwrap_or("USD");
+    let channel_booking_id = req.channel_booking_id.clone();
+    let guest_name = req.guest_name.clone();
+    let arrival_date = req.arrival_date.clone();
+    let departure_date = req.departure_date.clone();
+    let num_rooms = req.num_rooms;
+    let total_amount = req.total_amount.clone();
+    let currency_code = req.currency_code.clone();
     // Transform reservation data (map room type, rate plan)
     // Store the booking
     let row = sqlx::query("INSERT INTO distrib.bookings (channel_id, property_id, env_id, channel_booking_id, guest_name, arrival_date, departure_date, num_rooms, total_amount, currency_code, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'NEW') RETURNING id")
         .bind(channel_id).bind(property_id).bind(env_id).bind(channel_booking_id).bind(guest_name)
-        .bind(arrival_date).bind(departure_date).bind(num_rooms).bind(total_amount).bind(currency_code)
+        .bind(&arrival_date).bind(&departure_date).bind(num_rooms).bind(&total_amount).bind(&currency_code)
         .fetch_one(&mut *conn).await.map_err(err_db)?;
     let booking_id: uuid::Uuid = row.get("id");
     // B1: PMS reservation creation via the HTTP API (no cross-service SQL).
@@ -1006,15 +980,20 @@ pub async fn receive_reservation(
     emit_tx(&mut *conn, env_id, "hotel8:distrib:reservation:received", serde_json::json!({ "booking_id": booking_id, "reservation_id": reservation_id, "channel_code": channel_code }),
         &Publisher::from_parts(&a.claims.sub, &a.claims.scope)).await.map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "booking_id": booking_id, "reservation_id": reservation_id, "status": "DELIVERED" }),
-    ))
+    Ok(Json(ChannelReservationDelivered {
+        booking_id,
+        reservation_id,
+        status: "DELIVERED".to_string(),
+    }))
 }
 #[utoipa::path(
     put,
     path = "/v1/channels/{channel_code}/reservations/{booking_id}",
+    request_body = ChannelReservationUpdate,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Updated", body = ChannelReservationUpdateResult),
+        (status = 404, description = "Booking not found"),
+        (status = 502, description = "PMS cancel failed"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1026,8 +1005,8 @@ pub async fn update_channel_reservation(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_channel_code, booking_id)): Path<(String, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ChannelReservationUpdate>,
+) -> Result<Json<ChannelReservationUpdateResult>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1039,12 +1018,9 @@ pub async fn update_channel_reservation(
     let env_id = resolve_env(&a);
     let mut conn = state.pool.begin().await.map_err(err_db)?;
     set_tenant_context(&mut conn, env_id).await;
-    let status = req
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("MODIFIED");
+    let status = req.status.clone();
     let row = sqlx::query("UPDATE distrib.bookings SET status = $2 WHERE id = $1 RETURNING id, reservation_id, status")
-        .bind(booking_id).bind(status).fetch_optional(&mut *conn).await.map_err(err_db)?
+        .bind(booking_id).bind(&status).fetch_optional(&mut *conn).await.map_err(err_db)?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "booking not found".to_string()))?;
     let reservation_id: Option<uuid::Uuid> = row.get("reservation_id");
     // Update PMS reservation if linked - cancel via the PMS HTTP API.
@@ -1073,15 +1049,18 @@ pub async fn update_channel_reservation(
     .await
     .map_err(err_emit)?;
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "booking_id": booking_id, "reservation_id": reservation_id, "status": row.get::<String, _>("status") }),
-    ))
+    Ok(Json(ChannelReservationUpdateResult {
+        booking_id,
+        reservation_id,
+        status: row.get::<String, _>("status"),
+    }))
 }
 #[utoipa::path(
     post,
     path = "/v1/channels/{channel_code}/reservations/{booking_id}/status",
+    request_body = ReservationStatusPush,
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Status pushed", body = ReservationStatusPushed),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1093,8 +1072,8 @@ pub async fn push_reservation_status(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((_channel_code, booking_id)): Path<(String, uuid::Uuid)>,
-    Json(req): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    Json(req): Json<ReservationStatusPush>,
+) -> Result<Json<ReservationStatusPushed>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1104,10 +1083,7 @@ pub async fn push_reservation_status(
     )
     .await?;
     let env_id = resolve_env(&a);
-    let status = req
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("CONFIRMED");
+    let status = req.status.clone();
     // In production: POST to channel API endpoint
     emit_on_pool(
         &state.pool,
@@ -1118,9 +1094,11 @@ pub async fn push_reservation_status(
     )
     .await
     .map_err(err_emit)?;
-    Ok(Json(
-        serde_json::json!({ "booking_id": booking_id, "status": status, "pushed": true }),
-    ))
+    Ok(Json(ReservationStatusPushed {
+        booking_id,
+        status,
+        pushed: true,
+    }))
 }
 
 // ── -Channel-Facing API ──
@@ -1128,7 +1106,7 @@ pub async fn push_reservation_status(
     get,
     path = "/v1/channels/{channel_code}/properties",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sellable properties", body = ChannelSellableProperties),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1140,7 +1118,7 @@ pub async fn get_channel_properties(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_code): Path<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelSellableProperties>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1154,21 +1132,29 @@ pub async fn get_channel_properties(
     set_tenant_context(&mut conn, env_id).await;
     let rows = sqlx::query("SELECT cp.property_id, cp.is_enabled, cp.cta_enabled, cp.ctd_enabled, cp.min_los, cp.max_los FROM distrib.channel_properties cp JOIN distrib.channels c ON cp.channel_id = c.id WHERE c.channel_code = $1 AND cp.is_enabled = true")
         .bind(&channel_code).fetch_all(&mut *conn).await.map_err(err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "property_id": r.get::<uuid::Uuid, _>("property_id"), "is_enabled": r.get::<bool, _>("is_enabled"),
-        "cta_enabled": r.get::<bool, _>("cta_enabled"), "ctd_enabled": r.get::<bool, _>("ctd_enabled"),
-        "min_los": r.get::<Option<i32>, _>("min_los"), "max_los": r.get::<Option<i32>, _>("max_los"),
-    })).collect();
+    let items: Vec<ChannelSellableProperty> = rows
+        .iter()
+        .map(|r| ChannelSellableProperty {
+            property_id: r.get::<uuid::Uuid, _>("property_id"),
+            is_enabled: r.get::<bool, _>("is_enabled"),
+            cta_enabled: r.get::<bool, _>("cta_enabled"),
+            ctd_enabled: r.get::<bool, _>("ctd_enabled"),
+            min_los: r.get::<Option<i32>, _>("min_los"),
+            max_los: r.get::<Option<i32>, _>("max_los"),
+        })
+        .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_code": channel_code, "properties": items }),
-    ))
+    Ok(Json(ChannelSellableProperties {
+        channel_code,
+        properties: items,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/channels/{channel_code}/properties/{property_code}/content",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Room-type content (PMS projection)", body = ChannelPropertyContent),
+        (status = 502, description = "PMS room-type read failed"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1180,7 +1166,7 @@ pub async fn get_channel_property_content(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((channel_code, property_code)): Path<(String, String)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelPropertyContent>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1204,20 +1190,23 @@ pub async fn get_channel_property_content(
                 format!("PMS room-type read failed: {e}"),
             )
         })?;
-    let room_types: Vec<serde_json::Value> = rts
+    let room_types: Vec<ChannelContentRoomType> = rts
         .iter()
-        .map(|rt| {
-            serde_json::json!({
-                "code": rt.get("room_type_code"), "name": rt.get("room_type_name"),
-                "max_occupancy": rt.get("max_occupancy"), "bed_type": rt.get("bed_type"),
-                "smoking": rt.get("is_smoking"),
-            })
+        .map(|rt| ChannelContentRoomType {
+            code: rt.get("room_type_code").cloned().unwrap_or(serde_json::Value::Null),
+            name: rt.get("room_type_name").cloned().unwrap_or(serde_json::Value::Null),
+            max_occupancy: rt.get("max_occupancy").cloned().unwrap_or(serde_json::Value::Null),
+            bed_type: rt.get("bed_type").cloned().unwrap_or(serde_json::Value::Null),
+            smoking: rt.get("is_smoking").cloned().unwrap_or(serde_json::Value::Null),
         })
         .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_code": channel_code, "property_id": property_id, "room_types": room_types }),
-    ))
+    Ok(Json(ChannelPropertyContent {
+        channel_code,
+        property_id,
+        property_code,
+        room_types,
+    }))
 }
 
 /// `GET /v1/channels/{channel_code}/properties/{property_code}/ari`
@@ -1225,7 +1214,8 @@ pub async fn get_channel_property_content(
     get,
     path = "/v1/channels/{channel_code}/properties/{property_code}/ari",
     responses(
-        (status = 200, description = "Channel availability (ARI)", body = serde_json::Value),
+        (status = 200, description = "Channel availability (ARI)", body = ChannelAri),
+        (status = 502, description = "PMS inventory read failed"),
         (status = 403, description = "Missing distrib:admin scope"),
     ),
     security(("distrib:admin" = [])),
@@ -1236,7 +1226,7 @@ pub async fn get_channel_ari(
     headers: axum::http::HeaderMap,
     Path((channel_code, property_code)): Path<(String, String)>,
     Query(params): Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelAri>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1268,29 +1258,31 @@ pub async fn get_channel_ari(
                 format!("PMS inventory read failed: {e}"),
             )
         })?;
-    let ari: Vec<serde_json::Value> = inv
+    let ari: Vec<ChannelAriLine> = inv
         .get("items")
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default()
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "room_type_id": r.get("room_type_id"), "date": r.get("date"),
-                "available": r.get("available_rooms"), "sell_limit": r.get("sell_limit"),
-            })
+        .map(|r| ChannelAriLine {
+            room_type_id: r.get("room_type_id").cloned().unwrap_or(serde_json::Value::Null),
+            date: r.get("date").cloned().unwrap_or(serde_json::Value::Null),
+            available: r.get("available_rooms").cloned().unwrap_or(serde_json::Value::Null),
+            sell_limit: r.get("sell_limit").cloned().unwrap_or(serde_json::Value::Null),
         })
         .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_code": channel_code, "property_id": property_code, "ari": ari }),
-    ))
+    Ok(Json(ChannelAri {
+        channel_code,
+        property_id: property_code,
+        ari,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/channels/{channel_code}/properties/{property_code}/controls",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Booking controls (defaults when unmapped)", body = ChannelControlsResponse),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1302,7 +1294,7 @@ pub async fn get_channel_controls(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path((channel_code, property_code)): Path<(String, String)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelControlsResponse>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1318,18 +1310,25 @@ pub async fn get_channel_controls(
     let row = sqlx::query("SELECT cta_enabled, ctd_enabled, min_los, max_los FROM distrib.channel_properties cp JOIN distrib.channels c ON cp.channel_id = c.id WHERE c.channel_code = $1 AND cp.property_id = $2")
         .bind(&channel_code).bind(property_id).fetch_optional(&mut *conn).await.map_err(err_db)?;
     let controls = match row {
-        Some(r) => serde_json::json!({
-            "cta_enabled": r.get::<bool, _>("cta_enabled"), "ctd_enabled": r.get::<bool, _>("ctd_enabled"),
-            "min_los": r.get::<Option<i32>, _>("min_los"), "max_los": r.get::<Option<i32>, _>("max_los"),
-        }),
-        None => {
-            serde_json::json!({ "cta_enabled": true, "ctd_enabled": true, "min_los": null, "max_los": null })
-        }
+        Some(r) => ChannelControls {
+            cta_enabled: r.get::<bool, _>("cta_enabled"),
+            ctd_enabled: r.get::<bool, _>("ctd_enabled"),
+            min_los: r.get::<Option<i32>, _>("min_los"),
+            max_los: r.get::<Option<i32>, _>("max_los"),
+        },
+        None => ChannelControls {
+            cta_enabled: true,
+            ctd_enabled: true,
+            min_los: None,
+            max_los: None,
+        },
     };
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_code": channel_code, "property_id": property_code, "controls": controls }),
-    ))
+    Ok(Json(ChannelControlsResponse {
+        channel_code,
+        property_id: property_code,
+        controls,
+    }))
 }
 
 // ── -Hardening ──
@@ -1337,7 +1336,7 @@ pub async fn get_channel_controls(
     get,
     path = "/v1/channels/{channel_code}/validate",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Credential validity (active + api_key_ref present)", body = ChannelCredentialValidation),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1349,7 +1348,7 @@ pub async fn validate_channel_credentials(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Path(channel_code): Path<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<ChannelCredentialValidation>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1370,15 +1369,16 @@ pub async fn validate_channel_credentials(
         None => false,
     };
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "channel_code": channel_code, "valid": valid }),
-    ))
+    Ok(Json(ChannelCredentialValidation {
+        channel_code,
+        valid,
+    }))
 }
 #[utoipa::path(
     get,
     path = "/v1/sync-log",
     responses(
-        (status = 200, description = "OK", body = serde_json::Value),
+        (status = 200, description = "Sync log rows", body = SyncLogList),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Forbidden"),
     ),
@@ -1390,7 +1390,7 @@ pub async fn get_sync_log(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Query(params): Query<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SyncLogList>, (StatusCode, String)> {
     let a = crate::auth::verify_token(&state.config, &headers).await?;
     crate::policy::require(
         &state.policy,
@@ -1405,14 +1405,20 @@ pub async fn get_sync_log(
     let limit: i64 = params.get("limit").and_then(|v| v.as_i64()).unwrap_or(100);
     let rows = sqlx::query("SELECT id, channel_id, property_id, sync_type, status, attempts, error_message, created_at, completed_at FROM distrib.sync_log ORDER BY created_at DESC LIMIT $1")
         .bind(limit).fetch_all(&mut *conn).await.map_err(err_db)?;
-    let items: Vec<serde_json::Value> = rows.iter().map(|r| serde_json::json!({
-        "id": r.get::<uuid::Uuid, _>("id"), "channel_id": r.get::<uuid::Uuid, _>("channel_id"),
-        "property_id": r.get::<Option<uuid::Uuid>, _>("property_id"), "sync_type": r.get::<String, _>("sync_type"),
-        "status": r.get::<String, _>("status"), "attempts": r.get::<i32, _>("attempts"),
-        "error_message": r.get::<Option<String>, _>("error_message"),
-        "created_at": r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-        "completed_at": r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
-    })).collect();
+    let items: Vec<SyncLogRow> = rows
+        .iter()
+        .map(|r| SyncLogRow {
+            id: r.get::<uuid::Uuid, _>("id"),
+            channel_id: r.get::<uuid::Uuid, _>("channel_id"),
+            property_id: r.get::<Option<uuid::Uuid>, _>("property_id"),
+            sync_type: r.get::<String, _>("sync_type"),
+            status: r.get::<String, _>("status"),
+            attempts: r.get::<i32, _>("attempts"),
+            error_message: r.get::<Option<String>, _>("error_message"),
+            created_at: r.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+            completed_at: r.get::<Option<chrono::DateTime<chrono::Utc>>, _>("completed_at"),
+        })
+        .collect();
     conn.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(SyncLogList { items }))
 }
