@@ -111,4 +111,5 @@ use utoipa::OpenApi;
         (name = "policy", description = "Shield policy administration (shared surface)"),
         (name = "distrib", description = "Hotel8:Distrib admin API - availability, channels"),
     ),
-)]pub struct DistribOpenApi;
+)]
+pub struct DistribOpenApi;

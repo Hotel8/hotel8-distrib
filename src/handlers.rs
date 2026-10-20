@@ -10,14 +10,13 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use hotel8::distrib::contracts::{
-    AriPushRequest, AriPushResult, ChannelCreated, ChannelCreateRequest,
-    ChannelCredentialValidation, ChannelList, ChannelPropertyContent,
-    ChannelContentRoomType, ChannelPropertyList, ChannelPropertyMapRequest,
-    ChannelPropertyMapped, ChannelPropertyRow, ChannelReservationDelivered,
-    ChannelReservationRequest, ChannelReservationUpdate, ChannelReservationUpdateResult,
-    ChannelRow, ChannelSellableProperties, ChannelSellableProperty, ChannelUpdated,
-    ChannelUpdateRequest, ContentPushRequest, HealthDetail, PropertyControlsRequest,
-    PropertyControlsResult, PushAck, RateMarkupRequest, RateMarkupResult,
+    AriPushRequest, AriPushResult, ChannelContentRoomType, ChannelCreateRequest, ChannelCreated,
+    ChannelCredentialValidation, ChannelList, ChannelPropertyContent, ChannelPropertyList,
+    ChannelPropertyMapRequest, ChannelPropertyMapped, ChannelPropertyRow,
+    ChannelReservationDelivered, ChannelReservationRequest, ChannelReservationUpdate,
+    ChannelReservationUpdateResult, ChannelRow, ChannelSellableProperties, ChannelSellableProperty,
+    ChannelUpdateRequest, ChannelUpdated, ContentPushRequest, HealthDetail,
+    PropertyControlsRequest, PropertyControlsResult, PushAck, RateMarkupRequest, RateMarkupResult,
     RatePlanMapRequest, RatePlanMapped, ReservationStatusPush, ReservationStatusPushed,
     RoomTypeMapRequest, RoomTypeMapped, SyncLogList, SyncLogRow, SyncRetryResult,
 };
@@ -1193,11 +1192,26 @@ pub async fn get_channel_property_content(
     let room_types: Vec<ChannelContentRoomType> = rts
         .iter()
         .map(|rt| ChannelContentRoomType {
-            code: rt.get("room_type_code").cloned().unwrap_or(serde_json::Value::Null),
-            name: rt.get("room_type_name").cloned().unwrap_or(serde_json::Value::Null),
-            max_occupancy: rt.get("max_occupancy").cloned().unwrap_or(serde_json::Value::Null),
-            bed_type: rt.get("bed_type").cloned().unwrap_or(serde_json::Value::Null),
-            smoking: rt.get("is_smoking").cloned().unwrap_or(serde_json::Value::Null),
+            code: rt
+                .get("room_type_code")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            name: rt
+                .get("room_type_name")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            max_occupancy: rt
+                .get("max_occupancy")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            bed_type: rt
+                .get("bed_type")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            smoking: rt
+                .get("is_smoking")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
         })
         .collect();
     conn.commit().await.map_err(err_db)?;
@@ -1265,10 +1279,19 @@ pub async fn get_channel_ari(
         .unwrap_or_default()
         .iter()
         .map(|r| ChannelAriLine {
-            room_type_id: r.get("room_type_id").cloned().unwrap_or(serde_json::Value::Null),
+            room_type_id: r
+                .get("room_type_id")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
             date: r.get("date").cloned().unwrap_or(serde_json::Value::Null),
-            available: r.get("available_rooms").cloned().unwrap_or(serde_json::Value::Null),
-            sell_limit: r.get("sell_limit").cloned().unwrap_or(serde_json::Value::Null),
+            available: r
+                .get("available_rooms")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            sell_limit: r
+                .get("sell_limit")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
         })
         .collect();
     conn.commit().await.map_err(err_db)?;
