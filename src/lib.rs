@@ -15,6 +15,7 @@ pub mod openapi;
 // The utoipa dump for registration.rs - mirrored in main.rs for the binary;
 // the lib crate compiles registration::print too (the lib is also used by
 // test harnesses that never invoke print, so a null dump is unreachable there).
+#[cfg_attr(test, allow(dead_code))]
 static OPENAPI_DUMP: fn() -> serde_json::Value = || {
     use utoipa::OpenApi as _;
     serde_json::to_value(openapi::DistribOpenApi::openapi()).unwrap_or(serde_json::Value::Null)
