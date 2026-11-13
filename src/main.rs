@@ -21,6 +21,12 @@ mod event_emit;
 #[allow(dead_code)]
 mod handlers;
 mod openapi;
+
+static OPENAPI_DUMP: fn() -> serde_json::Value = || {
+    use utoipa::OpenApi as _;
+    serde_json::to_value(openapi::DistribOpenApi::openapi()).unwrap_or(serde_json::Value::Null)
+};
+
 pub mod policy;
 mod registration;
 #[allow(dead_code)]

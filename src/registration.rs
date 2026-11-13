@@ -11,8 +11,6 @@ use sentin8::registration::{
     AdminScope, AdminUi, AdminUiPage, M2mGrant, PgRole, PolicySetDecl, Registration, RelationDecl,
     SqlMigration,
 };
-use utoipa::OpenApi;
-
 const PG_ROLES: &[PgRole] = &[
     // Granular scopes (service:resource:action) -- no broad
     // distrib:read/write pair. The role OAuth scope list matches what the
@@ -156,13 +154,13 @@ const RELATIONS: &[RelationDecl] = &[];
 
 const SQL_1_INIT: &str = include_str!("../sql/init.sql");
 
-fn openapi_spec() -> serde_json::Value {
-    serde_json::to_value(crate::openapi::DistribOpenApi::openapi())
-        .unwrap_or(serde_json::Value::Null)
-}
 
 /// Print the registration JSON to stdout.
 pub fn print(section: Option<String>) -> anyhow::Result<()> {
+        #[cfg(not(test))]
+    let dump: fn() -> serde_json::Value = crate::OPENAPI_DUMP;
+    #[cfg(test)]
+    let dump: fn() -> serde_json::Value = || serde_json::Value::Null;
     let reg = Registration {
         service_type: "hotel8:distrib",
         subdomain: "hotel8-distrib",
@@ -207,11 +205,11 @@ pub fn print(section: Option<String>) -> anyhow::Result<()> {
         service_actions: None,
         m2m_grants: Some(M2M_GRANTS),
         openapi_url: "/openapi.json",
-        openapi: openapi_spec,
+        openapi: dump,
         policies: POLICIES,
         relations: RELATIONS,
         event_triggers: &[],
         schedules: &[],
     };
-    sentin8::registration::print_registration(section, &reg, openapi_spec)
+    sentin8::registration::print_registration(section, &reg, dump)
 }
