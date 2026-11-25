@@ -6,7 +6,8 @@
       "telemetry_property": {
         "slug": "distrib",
         "name": "Hotel8:Distrib Telemetry"
-      }
+      },
+      "exposure": "internal"
     }
   ]
 }
